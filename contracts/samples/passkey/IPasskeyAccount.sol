@@ -2,11 +2,12 @@
 pragma solidity ^0.8.17;
 
 import "../../interfaces/IAccount.sol";
+import "./IModularAccount.sol";
 
 /**
  * a Passkey account should expose its own public key.
  */
-interface IPasskeyAccount is IAccount {
+interface IPasskeyAccount is IAccount, IModularAccount {
     error PublicKeyAlreadyAdded(bytes publicKey);
 
     event PublicKeyAdded(bytes publicKey);
