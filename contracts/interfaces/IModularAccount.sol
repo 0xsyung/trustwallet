@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.17;
 
+import "./IExecutionModule.sol";
+
 /// @dev A packed representation of a module function.
 /// Consists of the following, left-aligned:
 /// Module address: 20 bytes

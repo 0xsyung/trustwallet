@@ -18,7 +18,6 @@ pragma solidity ^0.8.12;
      * @param signature sender-verified signature over the entire request, the EntryPoint address and the chain ID.
      */
     struct UserOperation {
-
         address sender;
         uint256 nonce;
         bytes initCode;
@@ -31,6 +30,21 @@ pragma solidity ^0.8.12;
         bytes paymasterAndData;
         bytes signature;
     }
+
+
+    struct PackedUserOperation {
+        address sender;
+        uint256 nonce;
+        bytes initCode;
+        bytes callData;
+        bytes32 accountGasLimits;
+        uint256 preVerificationGas;
+        bytes32 gasFees;
+        bytes paymasterAndData;
+        bytes signature;
+    }
+
+
 
 /**
  * Utility functions helpful when working with UserOperation structs.

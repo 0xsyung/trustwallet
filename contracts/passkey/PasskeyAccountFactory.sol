@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
-import "../../interfaces/IEntryPoint.sol";
+import "../interfaces/IEntryPoint.sol";
 import "./PasskeyAccount.sol";
 
 contract PasskeyAccountFactory {
@@ -15,14 +15,14 @@ contract PasskeyAccountFactory {
         accountImplementation = address(new PasskeyAccount(entryPoint));
     }
 
-    function createAccount(bytes32 salt, bytes calldata aPublicKey) public returns (PasskeyAccount account) {
+    function createAccount(bytes32 salt, bytes calldata firstPublicKey) public returns (PasskeyAccount account) {
         address addr = getAddress(salt);
-        if (addr.code.length > 0) {
+        uint codeSize = addr.code.length;
+        if (codeSize > 0) {
             return PasskeyAccount(payable(addr));
         }
-
         account = PasskeyAccount(payable(accountImplementation.cloneDeterministic(salt)));
-        account.initialize(aPublicKey);
+        account.initialize(firstPublicKey);
     }
 
     /**

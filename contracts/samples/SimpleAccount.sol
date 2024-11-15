@@ -64,9 +64,9 @@ contract SimpleAccount is BaseAccount, UUPSUpgradeable, Initializable {
     /**
      * execute a transaction (called directly from owner, or by entryPoint)
      */
-    function execute(address dest, uint256 value, bytes calldata func) external {
+    function execute(address dest, uint256 value, bytes calldata func) external payable returns (bytes memory) {
         _requireFromEntryPointOrOwner();
-        _call(dest, value, func);
+        return _call(dest, value, func);
     }
 
     /**
@@ -113,13 +113,15 @@ contract SimpleAccount is BaseAccount, UUPSUpgradeable, Initializable {
         return 0;
     }
 
-    function _call(address target, uint256 value, bytes memory data) internal {
+    function _call(address target, uint256 value, bytes memory data) internal returns (bytes memory){
         (bool success, bytes memory result) = target.call{value : value}(data);
         if (!success) {
             assembly {
                 revert(add(result, 32), mload(result))
             }
         }
+
+        return result;
     }
 
     /**
