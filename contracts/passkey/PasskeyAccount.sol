@@ -12,8 +12,10 @@ import "./ERC1271.sol";
 import "./PasskeyAccountStorage.sol";
 
 import "../core/BaseAccount.sol";
+import "../utils/Exec.sol";
 
 /// @notice TODO: implement IModularAccountView
+/// @notice TODO: implement Upgradeable proxy
 contract PasskeyAccount is
     IModularAccount,
     BaseAccount,
@@ -24,6 +26,9 @@ contract PasskeyAccount is
     using PasskeyAccountStorage for PasskeyAccountStorage.Layout;
 
     error OnlyEntryPoint();
+    error OnlyEntryPointOrSelf();
+    error ExecutionCallReverted(bytes result);
+
     event PasskeyAccountInitialized(
         IEntryPoint indexed entryPoint,
         address indexed firstPublicKey
@@ -45,8 +50,37 @@ contract PasskeyAccount is
         return PasskeyAccountStorage.layout().addPublicKey(publicKey);
     }
 
-    // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
+
+    fallback() external payable {
+      if (msg.sender != address(_entryPoint) && msg.sender != address(this)) {
+        revert OnlyEntryPointOrSelf();
+      }
+
+      if (msg.data.length > 0) {
+        //TOOD: run all pre-exection hooks
+
+        bytes4 selector;
+        assembly {
+            // Load the first 4 bytes of msg.data
+            selector := calldataload(0)
+        }
+
+        address moduleAddress = PasskeyAccountStorage.layout().getExecutionModuleAddress(selector);
+
+        bool success = Exec.delegateCall(moduleAddress, msg.data, gasleft());
+        if (!success) {
+          bytes memory result = Exec.getReturnData(2048);
+          if (result.length > 0) {
+              revert ExecutionCallReverted(result);
+          }
+        }
+      }
+    }
+
+    function exe() private {
+
+    }
 
     /// @inheritdoc BaseAccount
     function nonce() public view override returns (uint256) {
@@ -134,33 +168,6 @@ contract PasskeyAccount is
     }
 
     /// @inheritdoc IModularAccount
-    /// @notice TODO: installData is ignored for now.
-    function installExecution(
-        address module,
-        ExecutionManifest calldata manifest,
-        bytes calldata
-    ) external override {
-      _requireFromEntryPoint();
-      PasskeyAccountStorage.layout().addExecution(
-        module,
-        manifest
-      );
-    }
-
-    /// @inheritdoc IModularAccount
-    /// @notice TODO: manifest and uninstallData is ignored for now.
-    function uninstallExecution(
-        address module,
-        ExecutionManifest calldata,
-        bytes calldata
-    ) external override {
-      _requireFromEntryPoint();
-      PasskeyAccountStorage.layout().removeExecution(
-        module
-      );
-    }
-
-    /// @inheritdoc IModularAccount
     /// @notice TODO: installData and hooks are ignored for now.
     function installValidation(
         ValidationConfig validationConfig,
@@ -188,7 +195,32 @@ contract PasskeyAccount is
       );
     }
 
+    /// @inheritdoc IModularAccount
+    /// @notice TODO: installData is ignored for now.
+    function installExecution(
+        address module,
+        ExecutionManifest calldata manifest,
+        bytes calldata
+    ) external override {
+      _requireFromEntryPoint();
+      PasskeyAccountStorage.layout().addExecution(
+        module,
+        manifest
+      );
+    }
 
-
+    /// @inheritdoc IModularAccount
+    /// @notice TODO: uninstallData is ignored for now.
+    function uninstallExecution(
+        address module,
+        ExecutionManifest calldata manifest,
+        bytes calldata
+    ) external override {
+      _requireFromEntryPoint();
+      PasskeyAccountStorage.layout().removeExecution(
+        module,
+        manifest
+      );
+    }
 }
 

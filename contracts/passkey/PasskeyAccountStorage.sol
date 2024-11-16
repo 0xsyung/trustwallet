@@ -15,6 +15,8 @@ library PasskeyAccountStorage {
   error InvalidNonce(uint256 nonce);
   error InvalidSelectors();
   error ValidationAlreadyRemoved(bytes24 moduleEntity);
+  error ExecutionFunctionAlreadyInstalled(bytes4 selector);
+  error CannotRemoveExecutionFunctionInstalledWithDifferentModule(bytes4 selector, address module, address installedModule);
 
   event PublicKeyAdded(bytes publicKey); 
   event PublicKeyRemoved(bytes publicKey);
@@ -24,8 +26,8 @@ library PasskeyAccountStorage {
   event UserOpValidationRemoved(bytes24 moduleEntity);
   event SignatureValidationRemoved(bytes24 moduleEntity);
   event GlobalValidationRemoved(bytes24 moduleEntity);
-  event ExecutionAdded(address execution);
-  event ExecutionRemoved(address execution);
+  event ExecutionInstalled(address module, bytes4 selector);
+  event ExecutionUninstalled(address module, bytes4 selector);
   
   bytes32 constant LAYOUT_STORAGE_SLOT = bytes32(uint256(keccak256("TrustWallet.PasskeyAccountStorage.1_0_0")));
 
@@ -51,8 +53,7 @@ library PasskeyAccountStorage {
 
     mapping(bytes24 => bytes4[]) validationSelectors; // TODO: verify selectors during validations
 
-    mapping(address => address) executionList;
-    mapping(address => ExecutionManifest) executionManifests;
+    mapping(bytes4 => address) executionModuleAddresses;
   }
 
   function layout() internal pure returns (Layout storage s) {
@@ -113,6 +114,19 @@ library PasskeyAccountStorage {
 
     emit PublicKeyRemoved(publicKeyToBeRemoved);
   }
+
+  function resetPublicKeyList(Layout storage s, bytes memory newPublicKey) internal {
+    for (address cur = ADDRESS_ANCHOR; cur != ADDRESS_ANCHOR; ) {
+      address next = s.publicKeyList[cur];
+      delete s.publicKeyList[cur];
+      cur = next;
+
+      
+    }
+
+    addPublicKey(s, newPublicKey);
+  }
+
 
   function unpackValidationConfig(ValidationConfig config) internal pure returns (address moduleAddress, bytes4 entityId, bytes1 flags) {
     assembly {
@@ -358,30 +372,40 @@ library PasskeyAccountStorage {
   }
 
   function addExecution(Layout storage s, address module, ExecutionManifest calldata manifest) internal {
-    s.executionList[module] = s.executionList[ADDRESS_ANCHOR];
-    s.executionList[ADDRESS_ANCHOR] = module;
+    if (manifest.executionFunctions.length == 0) {
+      return;
+    }
+    for (uint256 i; i<manifest.executionFunctions.length; i++) {
+      bytes4 selector = manifest.executionFunctions[i].executionSelector;
+      if (s.executionModuleAddresses[selector] != address(0)) {
+        revert ExecutionFunctionAlreadyInstalled(selector);
+      }
+      s.executionModuleAddresses[selector] = module;
 
-    s.executionManifests[module] = manifest;
-
-    emit ExecutionAdded(module);
+      emit ExecutionInstalled(module, selector);
+    }
+    
+    
   }
 
-  function removeExecution(Layout storage s, address module) internal {
-    delete s.executionManifests[module];
-
-    // Remove from execution list
-    address prev = ADDRESS_ANCHOR;
-    address cur = s.executionList[ADDRESS_ANCHOR];
-    while (cur != ADDRESS_ANCHOR) {
-      if (module == cur) {
-        s.executionList[prev] = s.executionList[cur];
-        delete s.executionList[cur];
-        emit ExecutionRemoved(module);
-        return;
+  function removeExecution(Layout storage s, address module, ExecutionManifest calldata manifest) internal {
+    if (manifest.executionFunctions.length == 0) {
+      return;
+    }
+    for (uint256 i; i<manifest.executionFunctions.length; i++) {
+      bytes4 selector = manifest.executionFunctions[i].executionSelector;
+      address installedModule = s.executionModuleAddresses[selector];
+      if (installedModule != module) {
+        revert CannotRemoveExecutionFunctionInstalledWithDifferentModule(selector, module, installedModule);
       }
 
-      prev = cur;
-      cur = s.executionList[cur];
+      delete s.executionModuleAddresses[selector];
+
+      emit ExecutionUninstalled(module, selector);
     }
+  }
+
+  function getExecutionModuleAddress(Layout storage s, bytes4 selector) internal view returns (address) {
+    return s.executionModuleAddresses[selector];
   }
 }
