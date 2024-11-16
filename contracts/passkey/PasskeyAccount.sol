@@ -13,6 +13,7 @@ import "./PasskeyAccountStorage.sol";
 
 import "../core/BaseAccount.sol";
 
+/// @notice TODO: implement IModularAccountView
 contract PasskeyAccount is
     IModularAccount,
     BaseAccount,
@@ -133,25 +134,34 @@ contract PasskeyAccount is
     }
 
     /// @inheritdoc IModularAccount
+    /// @notice TODO: installData is ignored for now.
     function installExecution(
         address module,
         ExecutionManifest calldata manifest,
-        bytes calldata installData
+        bytes calldata
     ) external override {
       _requireFromEntryPoint();
+      PasskeyAccountStorage.layout().addExecution(
+        module,
+        manifest
+      );
     }
 
     /// @inheritdoc IModularAccount
+    /// @notice TODO: manifest and uninstallData is ignored for now.
     function uninstallExecution(
         address module,
-        ExecutionManifest calldata manifest,
-        bytes calldata uninstallData
+        ExecutionManifest calldata,
+        bytes calldata
     ) external override {
       _requireFromEntryPoint();
+      PasskeyAccountStorage.layout().removeExecution(
+        module
+      );
     }
 
     /// @inheritdoc IModularAccount
-    /// @notice installData and hooks are ignored.
+    /// @notice TODO: installData and hooks are ignored for now.
     function installValidation(
         ValidationConfig validationConfig,
         bytes4[] calldata selectors,
@@ -166,7 +176,7 @@ contract PasskeyAccount is
     }
 
     /// @inheritdoc IModularAccount
-    /// @notice uninstallData and hookUninstallData are ignored.
+    /// @notice TODO: uninstallData and hookUninstallData are ignored for now.
     function uninstallValidation(
         ModuleEntity validationFunction,
         bytes calldata,

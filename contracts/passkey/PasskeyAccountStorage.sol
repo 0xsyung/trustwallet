@@ -24,11 +24,14 @@ library PasskeyAccountStorage {
   event UserOpValidationRemoved(bytes24 moduleEntity);
   event SignatureValidationRemoved(bytes24 moduleEntity);
   event GlobalValidationRemoved(bytes24 moduleEntity);
+  event ExecutionAdded(address execution);
+  event ExecutionRemoved(address execution);
   
   bytes32 constant LAYOUT_STORAGE_SLOT = bytes32(uint256(keccak256("TrustWallet.PasskeyAccountStorage.1_0_0")));
 
   address constant ADDRESS_ANCHOR = address(1);
   bytes24 constant MODULE_ENTITY_ANCHOR = bytes24(uint192(1));
+
   bytes1 constant VALIDATION_CONFIG_FLAG_USEROP = 0x01;
   bytes1 constant VALIDATION_CONFIG_FLAG_SIGNATURE = 0x02;
   bytes1 constant VALIDATION_CONFIG_FLAG_GLOBAL = 0x04;
@@ -46,7 +49,10 @@ library PasskeyAccountStorage {
     mapping(bytes24 => bytes24) signatureValidationList;
     mapping(bytes24 => bytes24) userOpValidationList;
 
-    mapping(bytes24 => bytes4[]) validationSelectors;
+    mapping(bytes24 => bytes4[]) validationSelectors; // TODO: verify selectors during validations
+
+    mapping(address => address) executionList;
+    mapping(address => ExecutionManifest) executionManifests;
   }
 
   function layout() internal pure returns (Layout storage s) {
@@ -348,6 +354,34 @@ library PasskeyAccountStorage {
       if (validationData != 0) {
         return validationData;
       }
+    }
+  }
+
+  function addExecution(Layout storage s, address module, ExecutionManifest calldata manifest) internal {
+    s.executionList[module] = s.executionList[ADDRESS_ANCHOR];
+    s.executionList[ADDRESS_ANCHOR] = module;
+
+    s.executionManifests[module] = manifest;
+
+    emit ExecutionAdded(module);
+  }
+
+  function removeExecution(Layout storage s, address module) internal {
+    delete s.executionManifests[module];
+
+    // Remove from execution list
+    address prev = ADDRESS_ANCHOR;
+    address cur = s.executionList[ADDRESS_ANCHOR];
+    while (cur != ADDRESS_ANCHOR) {
+      if (module == cur) {
+        s.executionList[prev] = s.executionList[cur];
+        delete s.executionList[cur];
+        emit ExecutionRemoved(module);
+        return;
+      }
+
+      prev = cur;
+      cur = s.executionList[cur];
     }
   }
 }
