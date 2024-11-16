@@ -28,7 +28,11 @@ contract PasskeyAccount is
         address indexed firstPublicKey
     );
 
+    /// @inheritdoc IModularAccount
+    string public constant accountId = "TrustWallet.PasskeyAccount.0_1_0";
+
     IEntryPoint private immutable _entryPoint;
+    
 
     constructor(IEntryPoint anEntryPoint) {
         _entryPoint = anEntryPoint;
@@ -65,7 +69,16 @@ contract PasskeyAccount is
         bytes32 hash,
         bytes memory signature
     ) public view override returns (bytes4 magicValue) {
-        if (PasskeyAccountStorage.layout().validateSignature(signature, hash) == 0) {
+      uint256 validationData1 = PasskeyAccountStorage.layout().validateSignature(
+          signature,
+          hash
+      );
+      uint256 validationData2 = PasskeyAccountStorage.layout().validateSignatureWithValidationModule(
+          signature,
+          hash
+      );
+
+        if (validationData1 | validationData2 == 0) {
             return MAGICVALUE;
         }
 
@@ -77,11 +90,16 @@ contract PasskeyAccount is
         UserOperation calldata userOp,
         bytes32 userOpHash
     ) internal view override returns (uint256 validationData) {
-        return
-            PasskeyAccountStorage.layout().validateSignature(
-                userOp.signature,
-                userOpHash
-            );
+      uint256 validationData1 = PasskeyAccountStorage.layout().validateSignature(
+          userOp.signature,
+          userOpHash
+      );
+      uint256 validationData2 = PasskeyAccountStorage.layout().validateSignatureWithValidationModule(
+          userOp.signature,
+          userOpHash
+      );
+
+      validationData = validationData1 | validationData2;
     }
 
     function _call(
@@ -99,60 +117,78 @@ contract PasskeyAccount is
         return result;
     }
 
-    function execute(
-        address dest,
-        uint256 value,
-        bytes calldata func
-    ) external payable returns (bytes memory) {
-        _requireFromEntryPoint();
-        return _call(dest, value, func);
+    /// @inheritdoc IModularAccount
+    function execute(address target, uint256 value, bytes calldata data) external payable override returns (bytes memory) {
+      _requireFromEntryPoint();
+      return _call(target, value, data);
     }
 
-    function executeBatch(
-        address[] calldata dest,
-        bytes[] calldata func
-    ) external {
-        _requireFromEntryPoint();
-        require(dest.length == func.length, "wrong array lengths");
-        for (uint256 i = 0; i < dest.length; i++) {
-            _call(dest[i], 0, func[i]);
-        }
+    /// @inheritdoc IModularAccount
+    function executeBatch(Call[] calldata calls) external payable override returns (bytes[] memory results) {
+      _requireFromEntryPoint();
+      uint256 callLength = calls.length;
+      results = new bytes[](callLength);
+      for (uint256 i; i < callLength; ++i) {
+        Call calldata call = calls[i];
+        results[i] = _call(call.target, call.value, call.data);
+      }
     }
 
-    function executeBatch(
-        Call[] calldata calls
-    ) external payable override returns (bytes[] memory) {}
-
+    /// @inheritdoc IModularAccount
     function executeWithRuntimeValidation(
         bytes calldata data,
         bytes calldata authorization
-    ) external payable override returns (bytes memory) {}
+    ) external payable override returns (bytes memory) {
+      _requireFromEntryPoint();
+    }
 
+    /// @inheritdoc IModularAccount
     function installExecution(
         address module,
         ExecutionManifest calldata manifest,
         bytes calldata installData
-    ) external override {}
+    ) external override {
+      _requireFromEntryPoint();
+    }
 
+    /// @inheritdoc IModularAccount
     function uninstallExecution(
         address module,
         ExecutionManifest calldata manifest,
         bytes calldata uninstallData
-    ) external override {}
+    ) external override {
+      _requireFromEntryPoint();
+    }
 
+    /// @inheritdoc IModularAccount
+    /// @notice installData and hooks are ignored.
     function installValidation(
         ValidationConfig validationConfig,
         bytes4[] calldata selectors,
-        bytes calldata installData,
-        bytes[] calldata hooks
-    ) external override {}
+        bytes calldata,
+        bytes[] calldata
+    ) external override {
+      _requireFromEntryPoint();
+      PasskeyAccountStorage.layout().addValidation(
+        validationConfig,
+        selectors
+      );
+    }
 
+    /// @inheritdoc IModularAccount
+    /// @notice uninstallData and hookUninstallData are ignored.
     function uninstallValidation(
         ModuleEntity validationFunction,
-        bytes calldata uninstallData,
-        bytes[] calldata hookUninstallData
-    ) external override {}
+        bytes calldata,
+        bytes[] calldata
+    ) external override {
+      _requireFromEntryPoint();
+      PasskeyAccountStorage.layout().removeValidation(
+        validationFunction
+      );
+    }
 
-    function accountId() external view override returns (string memory) {}
+
+
 }
 
