@@ -129,8 +129,17 @@ contract DepositPaymaster is BasePaymaster {
     internal view override returns (bytes memory context, uint256 validationData) {
 
         (userOpHash);
+
+        bytes32 accountGasLimits = userOp.accountGasLimits;
+        uint256 verificationGasLimit;
+        uint256 callGasLimit;
+        assembly {
+          verificationGasLimit := mload(add(accountGasLimits, 16))
+          callGasLimit := mload(add(accountGasLimits, 32))
+        }
+
         // verificationGasLimit is dual-purposed, as gas limit for postOp. make sure it is high enough
-        require(userOp.verificationGasLimit > COST_OF_POST, "DepositPaymaster: gas too low for postOp");
+        require(verificationGasLimit > COST_OF_POST, "DepositPaymaster: gas too low for postOp");
 
         bytes calldata paymasterAndData = userOp.paymasterAndData;
         require(paymasterAndData.length == 20+20, "DepositPaymaster: paymasterAndData must specify token");

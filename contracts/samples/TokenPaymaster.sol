@@ -73,9 +73,16 @@ contract TokenPaymaster is BasePaymaster, ERC20 {
     internal view override returns (bytes memory context, uint256 validationData) {
         uint256 tokenPrefund = getTokenValueOfEth(requiredPreFund);
 
+        bytes32 accountGasLimits = userOp.accountGasLimits;
+        uint256 verificationGasLimit;
+        uint256 callGasLimit;
+        assembly {
+          verificationGasLimit := mload(add(accountGasLimits, 16))
+          callGasLimit := mload(add(accountGasLimits, 32))
+        }
         // verificationGasLimit is dual-purposed, as gas limit for postOp. make sure it is high enough
         // make sure that verificationGasLimit is high enough to handle postOp
-        require(userOp.verificationGasLimit > COST_OF_POST, "TokenPaymaster: gas too low for postOp");
+        require(verificationGasLimit > COST_OF_POST, "TokenPaymaster: gas too low for postOp");
 
         if (userOp.initCode.length != 0) {
             _validateConstructor(userOp);

@@ -281,9 +281,25 @@ library PasskeyAccountStorage {
     return 0;
   }
 
-  function validateAndUpdateNonce(Layout storage s, UserOperation calldata userOp) internal {
+  function validateUserOpAndUpdateNonce(Layout storage s, UserOperation calldata userOp, bytes32 userOpHash) internal returns (uint256 validationData) {
+    for (
+      bytes24 cur = s.userOpValidationList[MODULE_ENTITY_ANCHOR];
+      cur != MODULE_ENTITY_ANCHOR;
+      cur = s.userOpValidationList[cur]
+    ) {
+      (address moduleAddress, bytes4 entityId) = unpackModuleEntity(cur);
+      
+      validationData = IValidationModule(moduleAddress).validateUserOp(uint32(entityId), userOp, userOpHash);
+      if (validationData != 0) {
+        return validationData;
+      }
+    }
+
     if (s.nonce++ != userOp.nonce) {
       revert InvalidNonce(userOp.nonce);
     }
+
+    return 0;
   }
+
 }

@@ -100,8 +100,9 @@ contract SimpleAccount is BaseAccount, UUPSUpgradeable, Initializable {
     }
 
     /// implement template method of BaseAccount
-    function _validateAndUpdateNonce(UserOperation calldata userOp) internal override {
+    function _validateAndUpdateNonce(UserOperation calldata userOp, bytes32) internal override returns (uint256 validationData){
         require(_nonce++ == userOp.nonce, "account: invalid nonce");
+        return 0;
     }
 
     /// implement template method of BaseAccount

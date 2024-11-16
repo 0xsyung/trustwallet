@@ -263,17 +263,29 @@ contract EntryPoint is IEntryPoint, StakeManager {
         return keccak256(abi.encode(userOp.hash(), address(this), block.chainid));
     }
 
+    function unpackGasParams(bytes32 accountGasLimits, bytes32 gasFees) internal pure returns (uint256 verificationGasLimit, uint256 callGasLimit, uint256 maxPriorityFeePerGas, uint256 maxFeePerGas) {
+        assembly {
+          verificationGasLimit := mload(add(accountGasLimits, 16))
+          callGasLimit := mload(add(accountGasLimits, 32))
+          maxPriorityFeePerGas := mload(add(gasFees, 16))
+          maxFeePerGas := mload(add(gasFees, 32))
+        }
+    }
+
     /**
      * copy general fields from userOp into the memory opInfo structure.
      */
     function _copyUserOpToMemory(UserOperation calldata userOp, MemoryUserOp memory mUserOp) internal pure {
         mUserOp.sender = userOp.sender;
         mUserOp.nonce = userOp.nonce;
-        mUserOp.callGasLimit = userOp.callGasLimit;
-        mUserOp.verificationGasLimit = userOp.verificationGasLimit;
         mUserOp.preVerificationGas = userOp.preVerificationGas;
-        mUserOp.maxFeePerGas = userOp.maxFeePerGas;
-        mUserOp.maxPriorityFeePerGas = userOp.maxPriorityFeePerGas;
+
+        (uint256 verificationGasLimit, uint256 callGasLimit, uint256 maxPriorityFeePerGas, uint256 maxFeePerGas) = unpackGasParams(userOp.accountGasLimits, userOp.gasFees);
+        mUserOp.verificationGasLimit = verificationGasLimit;
+        mUserOp.callGasLimit = callGasLimit;
+        mUserOp.maxFeePerGas = maxFeePerGas;
+        mUserOp.maxPriorityFeePerGas = maxPriorityFeePerGas;
+
         bytes calldata paymasterAndData = userOp.paymasterAndData;
         if (paymasterAndData.length > 0) {
             require(paymasterAndData.length >= 20, "AA93 invalid paymasterAndData");
@@ -494,41 +506,39 @@ contract EntryPoint is IEntryPoint, StakeManager {
      * @param opIndex the index of this userOp into the "opInfos" array
      * @param userOp the userOp to validate
      */
-    function _validatePrepayment(uint256 opIndex, UserOperation calldata userOp, UserOpInfo memory outOpInfo)
-    private returns (uint256 validationData, uint256 paymasterValidationData) {
+    function _validatePrepayment(uint256 opIndex, UserOperation calldata userOp, UserOpInfo memory outOpInfo) private returns (uint256 validationData, uint256 paymasterValidationData) {
+      uint256 preGas = gasleft();
+      MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
+      _copyUserOpToMemory(userOp, mUserOp);
+      outOpInfo.userOpHash = getUserOpHash(userOp);
 
-        uint256 preGas = gasleft();
-        MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
-        _copyUserOpToMemory(userOp, mUserOp);
-        outOpInfo.userOpHash = getUserOpHash(userOp);
+      // validate all numeric values in userOp are well below 128 bit, so they can safely be added
+      // and multiplied without causing overflow
+      uint256 maxGasValues = mUserOp.preVerificationGas | mUserOp.verificationGasLimit | mUserOp.callGasLimit |
+      mUserOp.maxFeePerGas | mUserOp.maxPriorityFeePerGas;
+      require(maxGasValues <= type(uint120).max, "AA94 gas values overflow");
 
-        // validate all numeric values in userOp are well below 128 bit, so they can safely be added
-        // and multiplied without causing overflow
-        uint256 maxGasValues = mUserOp.preVerificationGas | mUserOp.verificationGasLimit | mUserOp.callGasLimit |
-        userOp.maxFeePerGas | userOp.maxPriorityFeePerGas;
-        require(maxGasValues <= type(uint120).max, "AA94 gas values overflow");
+      uint256 gasUsedByValidateAccountPrepayment;
+      (uint256 requiredPreFund) = _getRequiredPrefund(mUserOp);
+      (gasUsedByValidateAccountPrepayment, validationData) = _validateAccountPrepayment(opIndex, userOp, outOpInfo, requiredPreFund);
+      //a "marker" where account opcode validation is done and paymaster opcode validation is about to start
+      // (used only by off-chain simulateValidation)
+      numberMarker();
 
-        uint256 gasUsedByValidateAccountPrepayment;
-        (uint256 requiredPreFund) = _getRequiredPrefund(mUserOp);
-        (gasUsedByValidateAccountPrepayment, validationData) = _validateAccountPrepayment(opIndex, userOp, outOpInfo, requiredPreFund);
-        //a "marker" where account opcode validation is done and paymaster opcode validation is about to start
-        // (used only by off-chain simulateValidation)
-        numberMarker();
+      bytes memory context;
+      if (mUserOp.paymaster != address(0)) {
+          (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo, requiredPreFund, gasUsedByValidateAccountPrepayment);
+      }
+      unchecked {
+          uint256 gasUsed = preGas - gasleft();
 
-        bytes memory context;
-        if (mUserOp.paymaster != address(0)) {
-            (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo, requiredPreFund, gasUsedByValidateAccountPrepayment);
-        }
-    unchecked {
-        uint256 gasUsed = preGas - gasleft();
-
-        if (userOp.verificationGasLimit < gasUsed) {
-            revert FailedOp(opIndex, "AA40 over verificationGasLimit");
-        }
-        outOpInfo.prefund = requiredPreFund;
-        outOpInfo.contextOffset = getOffsetOfMemoryBytes(context);
-        outOpInfo.preOpGas = preGas - gasleft() + userOp.preVerificationGas;
-    }
+          if (mUserOp.verificationGasLimit < gasUsed) {
+              revert FailedOp(opIndex, "AA40 over verificationGasLimit");
+          }
+          outOpInfo.prefund = requiredPreFund;
+          outOpInfo.contextOffset = getOffsetOfMemoryBytes(context);
+          outOpInfo.preOpGas = preGas - gasleft() + userOp.preVerificationGas;
+      }
     }
 
     /**

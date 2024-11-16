@@ -20,7 +20,7 @@ contract OwnershipModule is IValidationModule {
 
   function validateUserOp(
       uint32 entityId,
-      PackedUserOperation calldata userOp,
+      UserOperation calldata userOp,
       bytes32 userOpHash
   ) external override returns (uint256) {}
 

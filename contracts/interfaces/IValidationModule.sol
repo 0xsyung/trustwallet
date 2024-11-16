@@ -11,7 +11,7 @@ interface IValidationModule is IModule {
     /// @param userOp The user operation.
     /// @param userOpHash The user operation hash.
     /// @return Packed validation data for validAfter (6 bytes), validUntil (6 bytes), and authorizer (20 bytes).
-    function validateUserOp(uint32 entityId, PackedUserOperation calldata userOp, bytes32 userOpHash)
+    function validateUserOp(uint32 entityId, UserOperation calldata userOp, bytes32 userOpHash)
         external
         returns (uint256);
 

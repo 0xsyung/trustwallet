@@ -41,8 +41,15 @@ abstract contract BaseAccount is IAccount {
     external override virtual returns (uint256 validationData) {
         _requireFromEntryPoint();
         validationData = _validateSignature(userOp, userOpHash);
+        if (validationData != 0) {
+          return validationData;
+        }
+
         if (userOp.initCode.length == 0) {
-            _validateAndUpdateNonce(userOp);
+            validationData = _validateAndUpdateNonce(userOp, userOpHash);
+            if (validationData != 0) {
+              return validationData;
+            }
         }
         _payPrefund(missingAccountFunds);
     }
@@ -76,7 +83,7 @@ abstract contract BaseAccount is IAccount {
      * called only if initCode is empty (since "nonce" field is used as "salt" on account creation)
      * @param userOp the op to validate.
      */
-    function _validateAndUpdateNonce(UserOperation calldata userOp) internal virtual;
+    function _validateAndUpdateNonce(UserOperation calldata userOp, bytes32 userOpHash) internal virtual returns (uint256 validationData);
 
     /**
      * sends to the entrypoint (msg.sender) the missing funds for this transaction.
