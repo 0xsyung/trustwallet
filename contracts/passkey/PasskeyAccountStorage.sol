@@ -25,7 +25,7 @@ library PasskeyAccountStorage {
   event SignatureValidationRemoved(bytes24 moduleEntity);
   event GlobalValidationRemoved(bytes24 moduleEntity);
   
-  bytes32 constant LAYOUT_STORAGE_SLOT = bytes32(uint256(keccak256("trustwallet.PasskeyAccountStorage.1_0_0")));
+  bytes32 constant LAYOUT_STORAGE_SLOT = bytes32(uint256(keccak256("TrustWallet.PasskeyAccountStorage.1_0_0")));
 
   address constant ADDRESS_ANCHOR = address(1);
   bytes24 constant MODULE_ENTITY_ANCHOR = bytes24(uint192(1));
@@ -242,24 +242,53 @@ library PasskeyAccountStorage {
   function validateSignature(Layout storage s, bytes memory signature, bytes32 hash) internal view returns (uint256) {
     address sender = hash.recover(signature);
 
+    uint256 result = _validateSignatureWithStoredPublicKeys(s, sender);
+    if (result != 0) {
+      return result;
+    }
+
+    return _validateSignatureWithValidationModule(s, signature, hash, sender);
+  }
+
+  function _validateSignatureWithStoredPublicKeys(Layout storage s, address sender) private view returns (uint256 result) {
     for (
       address cur = s.publicKeyList[ADDRESS_ANCHOR];
       cur != ADDRESS_ANCHOR;
       cur = s.publicKeyList[cur]
     ) {
       if (sender == cur) {
-        return 0;
+        return 0; // OK
       }
     }
 
     return 1; // SIG_VALIDATION_FAILED
   }
 
-  function validateSignatureWithValidationModule(Layout storage s, bytes memory signature, bytes32 hash) internal view returns (uint256) {
-    address sender = hash.recover(signature);
+  function _validateSignatureWithValidationModule(Layout storage s, bytes memory signature, bytes32 hash, address sender) private view returns (uint256) {
+    bytes24 cur;
 
     for (
-      bytes24 cur = s.signatureValidationList[MODULE_ENTITY_ANCHOR];
+      cur = s.globalValidationList[MODULE_ENTITY_ANCHOR];
+      cur != MODULE_ENTITY_ANCHOR;
+      cur = s.globalValidationList[cur]
+    ) {
+      (address moduleAddress, bytes4 entityId) = unpackModuleEntity(cur);
+      
+      bytes4 result = IValidationModule(moduleAddress).validateSignature(
+        address(this),
+        uint32(entityId),
+        sender,
+        hash,
+        signature
+      );
+
+      if (result != ERC1271_MAGICVALUE) {
+        return 1; // SIG_VALIDATION_FAILED
+      }
+    }
+
+    for (
+      cur = s.signatureValidationList[MODULE_ENTITY_ANCHOR];
       cur != MODULE_ENTITY_ANCHOR;
       cur = s.signatureValidationList[cur]
     ) {
@@ -282,8 +311,34 @@ library PasskeyAccountStorage {
   }
 
   function validateUserOpAndUpdateNonce(Layout storage s, UserOperation calldata userOp, bytes32 userOpHash) internal returns (uint256 validationData) {
+    validationData = _validateUserOpWithValidationModule(s, userOp, userOpHash);
+    if (validationData != 0) {
+      return validationData;
+    }
+
+    if (s.nonce++ != userOp.nonce) {
+      revert InvalidNonce(userOp.nonce);
+    }
+  }
+
+  function _validateUserOpWithValidationModule(Layout storage s, UserOperation calldata userOp, bytes32 userOpHash) private returns (uint256 validationData) {
+    bytes24 cur;
+
     for (
-      bytes24 cur = s.userOpValidationList[MODULE_ENTITY_ANCHOR];
+      cur = s.globalValidationList[MODULE_ENTITY_ANCHOR];
+      cur != MODULE_ENTITY_ANCHOR;
+      cur = s.globalValidationList[cur]
+    ) {
+      (address moduleAddress, bytes4 entityId) = unpackModuleEntity(cur);
+      
+      validationData = IValidationModule(moduleAddress).validateUserOp(uint32(entityId), userOp, userOpHash);
+      if (validationData != 0) {
+        return validationData;
+      }
+    }
+
+    for (
+      cur = s.userOpValidationList[MODULE_ENTITY_ANCHOR];
       cur != MODULE_ENTITY_ANCHOR;
       cur = s.userOpValidationList[cur]
     ) {
@@ -294,12 +349,5 @@ library PasskeyAccountStorage {
         return validationData;
       }
     }
-
-    if (s.nonce++ != userOp.nonce) {
-      revert InvalidNonce(userOp.nonce);
-    }
-
-    return 0;
   }
-
 }

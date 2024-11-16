@@ -78,14 +78,6 @@ contract PasskeyAccount is
         return 0xffffffff;
       }
 
-      validationData = PasskeyAccountStorage.layout().validateSignatureWithValidationModule(
-          signature,
-          hash
-      );
-      if (validationData != 0) {
-        return 0xffffffff;
-      }
-
       return MAGICVALUE;
     }
 
@@ -94,21 +86,10 @@ contract PasskeyAccount is
         UserOperation calldata userOp,
         bytes32 userOpHash
     ) internal view override returns (uint256 validationData) {
-      validationData = PasskeyAccountStorage.layout().validateSignature(
+      return PasskeyAccountStorage.layout().validateSignature(
           userOp.signature,
           userOpHash
       );
-      if (validationData != 0) {
-        return validationData;
-      }
-
-      validationData = PasskeyAccountStorage.layout().validateSignatureWithValidationModule(
-          userOp.signature,
-          userOpHash
-      );
-      if (validationData != 0) {
-        return validationData;
-      }
     }
 
     function _call(
