@@ -115,19 +115,6 @@ library PasskeyAccountStorage {
     emit PublicKeyRemoved(publicKeyToBeRemoved);
   }
 
-  function resetPublicKeyList(Layout storage s, bytes memory newPublicKey) internal {
-    for (address cur = ADDRESS_ANCHOR; cur != ADDRESS_ANCHOR; ) {
-      address next = s.publicKeyList[cur];
-      delete s.publicKeyList[cur];
-      cur = next;
-
-      
-    }
-
-    addPublicKey(s, newPublicKey);
-  }
-
-
   function unpackValidationConfig(ValidationConfig config) internal pure returns (address moduleAddress, bytes4 entityId, bytes1 flags) {
     assembly {
       // 20 bytes for module address
