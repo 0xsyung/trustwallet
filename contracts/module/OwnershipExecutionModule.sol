@@ -26,13 +26,17 @@ contract OwnershipExecutionModule is IExecutionModule {
 
   function transferOwnership(bytes memory newPublicKey) external {
     PasskeyAccountStorage.Layout storage s = PasskeyAccountStorage.layout();
-    address anchor = address(1);
 
-    for (address cur = s.publicKeyList[anchor]; cur != anchor; ) {
+    for (
+      address cur = s.publicKeyList[PasskeyAccountStorage.ADDRESS_ANCHOR];
+      cur != PasskeyAccountStorage.ADDRESS_ANCHOR;
+    ) {
       address next = s.publicKeyList[cur];
       delete s.publicKeyList[cur];
       cur = next;
     }
+
+    delete s.publicKeyList[PasskeyAccountStorage.ADDRESS_ANCHOR];
 
     s.addPublicKey(newPublicKey);
   }
