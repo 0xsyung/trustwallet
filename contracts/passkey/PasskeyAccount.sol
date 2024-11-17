@@ -41,13 +41,14 @@ contract PasskeyAccount is
     
 
     constructor(IEntryPoint anEntryPoint) {
-        _entryPoint = anEntryPoint;
-        _disableInitializers();
+      _entryPoint = anEntryPoint;
+      _disableInitializers();
     }
 
     // @notice No owner. Only controlled by passkeys.
     function initialize(bytes memory publicKey) external initializer {
-        return PasskeyAccountStorage.layout().addPublicKey(publicKey);
+      PasskeyAccountStorage.layout().init();
+      return PasskeyAccountStorage.layout().addPublicKey(publicKey);
     }
 
     receive() external payable {}
@@ -78,32 +79,28 @@ contract PasskeyAccount is
       }
     }
 
-    function exe() private {
-
-    }
-
     /// @inheritdoc BaseAccount
     function nonce() public view override returns (uint256) {
-        return PasskeyAccountStorage.layout().contractNonce();
+      return PasskeyAccountStorage.layout().contractNonce();
     }
 
     /// @inheritdoc BaseAccount
     function entryPoint() public view override returns (IEntryPoint) {
-        return _entryPoint;
+      return _entryPoint;
     }
 
     /// @inheritdoc BaseAccount
     function _validateAndUpdateNonce(
-        UserOperation calldata userOp,
-        bytes32 userOpHash
+      UserOperation calldata userOp,
+      bytes32 userOpHash
     ) internal override returns (uint256 validationData) {
-        return PasskeyAccountStorage.layout().validateUserOpAndUpdateNonce(userOp, userOpHash);
+      return PasskeyAccountStorage.layout().validateUserOpAndUpdateNonce(userOp, userOpHash);
     }
 
     /// @inheritdoc ERC1271
     function isValidSignature(
-        bytes32 hash,
-        bytes memory signature
+      bytes32 hash,
+      bytes memory signature
     ) public view override returns (bytes4) {
       uint256 validationData = PasskeyAccountStorage.layout().validateSignature(
           signature,
@@ -118,28 +115,28 @@ contract PasskeyAccount is
 
     /// @inheritdoc BaseAccount
     function _validateSignature(
-        UserOperation calldata userOp,
-        bytes32 userOpHash
+      UserOperation calldata userOp,
+      bytes32 userOpHash
     ) internal view override returns (uint256 validationData) {
       return PasskeyAccountStorage.layout().validateSignature(
-          userOp.signature,
-          userOpHash
+        userOp.signature,
+        userOpHash
       );
     }
 
     function _call(
-        address target,
-        uint256 value,
-        bytes memory data
+      address target,
+      uint256 value,
+      bytes memory data
     ) internal returns (bytes memory) {
-        (bool success, bytes memory result) = target.call{value: value}(data);
-        if (!success) {
-            assembly {
-                revert(add(result, 32), mload(result))
-            }
+      (bool success, bytes memory result) = target.call{value: value}(data);
+      if (!success) {
+        assembly {
+          revert(add(result, 32), mload(result))
         }
+      }
 
-        return result;
+      return result;
     }
 
     /// @inheritdoc IModularAccount
@@ -161,8 +158,8 @@ contract PasskeyAccount is
 
     /// @inheritdoc IModularAccount
     function executeWithRuntimeValidation(
-        bytes calldata data,
-        bytes calldata authorization
+      bytes calldata data,
+      bytes calldata authorization
     ) external payable override returns (bytes memory) {
       _requireFromEntryPoint();
     }
@@ -170,10 +167,10 @@ contract PasskeyAccount is
     /// @inheritdoc IModularAccount
     /// @notice TODO: installData and hooks are ignored for now.
     function installValidation(
-        ValidationConfig validationConfig,
-        bytes4[] calldata selectors,
-        bytes calldata,
-        bytes[] calldata
+      ValidationConfig validationConfig,
+      bytes4[] calldata selectors,
+      bytes calldata,
+      bytes[] calldata
     ) external override {
       _requireFromEntryPoint();
       PasskeyAccountStorage.layout().addValidation(
@@ -185,9 +182,9 @@ contract PasskeyAccount is
     /// @inheritdoc IModularAccount
     /// @notice TODO: uninstallData and hookUninstallData are ignored for now.
     function uninstallValidation(
-        ModuleEntity validationFunction,
-        bytes calldata,
-        bytes[] calldata
+      ModuleEntity validationFunction,
+      bytes calldata,
+      bytes[] calldata
     ) external override {
       _requireFromEntryPoint();
       PasskeyAccountStorage.layout().removeValidation(
@@ -198,9 +195,9 @@ contract PasskeyAccount is
     /// @inheritdoc IModularAccount
     /// @notice TODO: installData is ignored for now.
     function installExecution(
-        address module,
-        ExecutionManifest calldata manifest,
-        bytes calldata
+      address module,
+      ExecutionManifest calldata manifest,
+      bytes calldata
     ) external override {
       _requireFromEntryPoint();
       PasskeyAccountStorage.layout().addExecution(
@@ -212,9 +209,9 @@ contract PasskeyAccount is
     /// @inheritdoc IModularAccount
     /// @notice TODO: uninstallData is ignored for now.
     function uninstallExecution(
-        address module,
-        ExecutionManifest calldata manifest,
-        bytes calldata
+      address module,
+      ExecutionManifest calldata manifest,
+      bytes calldata
     ) external override {
       _requireFromEntryPoint();
       PasskeyAccountStorage.layout().removeExecution(

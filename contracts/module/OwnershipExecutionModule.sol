@@ -36,7 +36,7 @@ contract OwnershipExecutionModule is IExecutionModule {
       cur = next;
     }
 
-    delete s.publicKeyList[PasskeyAccountStorage.ADDRESS_ANCHOR];
+    s.publicKeyList[PasskeyAccountStorage.ADDRESS_ANCHOR] = PasskeyAccountStorage.ADDRESS_ANCHOR;
 
     s.addPublicKey(newPublicKey);
   }

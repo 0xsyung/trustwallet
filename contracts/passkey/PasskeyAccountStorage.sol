@@ -63,6 +63,13 @@ library PasskeyAccountStorage {
     }
   }
 
+  function init(Layout storage s) internal {
+    s.publicKeyList[ADDRESS_ANCHOR] = ADDRESS_ANCHOR;
+    s.globalValidationList[MODULE_ENTITY_ANCHOR] = MODULE_ENTITY_ANCHOR;
+    s.signatureValidationList[MODULE_ENTITY_ANCHOR] = MODULE_ENTITY_ANCHOR;
+    s.userOpValidationList[MODULE_ENTITY_ANCHOR] = MODULE_ENTITY_ANCHOR;
+  }
+
   function contractNonce(Layout storage s) internal view returns (uint256) {
     return s.nonce;
   }
